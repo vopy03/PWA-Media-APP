@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Вибір профілю</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#121212">
+</head>
+<body>
+  <header>
+    <span>Вибір профілю</span>
+    <nav class="nav">
+      <a href="index.html" class="nav-link" id="nav-catalog">Каталог</a>
+      <a href="profile.html" class="nav-link" id="nav-profile">Профіль</a>
+      <button class="nav-link" id="nav-choose-folder" style="background:transparent;">Вибрати папку</button>
+    </nav>
+  </header>
+  <div class="container">
+    <div id="profile-root"></div>
+    <button id="clear-history-all">Очистити всю історію</button>
+    <div id="clear-series-block"></div>
+  </div>
+  <script type="module">
+    import { FileSystemManager } from './filesystem.js';
+    import { ProfileManager } from './profile.js';
+    // --- ініціалізація файлової системи та менеджера профілів ---
+    const fs = new FileSystemManager();
+    let appDataHandle = await fs.getFolderHandle('mediaDir');
+    if (!appDataHandle) {
+      // Якщо папка не вибрана — блокуємо
+      document.getElementById('profile-root').innerHTML = '<b>Оберіть медіа-папку для початку роботи!</b>';
+      throw new Error('No mediaDir');
+    }
+    appDataHandle = await fs.ensureAppDataFolder(appDataHandle);
+    const profileManager = new ProfileManager(appDataHandle);
+    // --- UI вибору профілю ---
+    async function renderProfileSelector() {
+      const root = document.getElementById('profile-root');
+      root.innerHTML = '<p>Завантаження...</p>';
+      let profiles = await profileManager.getProfiles();
+      root.innerHTML = '';
+      const select = document.createElement('select');
+      select.style.fontSize = '1.2rem';
+      select.style.marginBottom = '1rem';
+      profiles.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+      root.appendChild(select);
+      const input = document.createElement('input');
+      input.placeholder = 'Новий профіль';
+      input.style.fontSize = '1.2rem';
+      input.style.marginBottom = '1rem';
+      root.appendChild(input);
+      const btn = document.createElement('button');
+      btn.textContent = 'Увійти';
+      btn.style.fontSize = '1.2rem';
+      btn.onclick = async () => {
+        let name = input.value.trim() || select.value;
+        if (!name) {
+          alert('Введіть ім’я профілю або виберіть існуючий!');
+          return;
+        }
+        if (!profiles.includes(name)) {
+          // Створюємо новий профіль (порожній)
+          await profileManager.saveProfile(name, {});
+          profiles = await profileManager.getProfiles();
+        }
+        localStorage.setItem('lastProfile', name);
+        window.location = 'index.html';
+      };
+      root.appendChild(btn);
+    }
+    renderProfileSelector();
+
+    // --- Очищення історії ---
+    const btnClearAll = document.getElementById('clear-history-all');
+    btnClearAll.onclick = async () => {
+      if (!confirm('Ви впевнені, що хочете повністю очистити історію перегляду?')) return;
+      const name = localStorage.getItem('lastProfile');
+      let data = await profileManager.loadProfile(name);
+      delete data.movies;
+      delete data.series;
+      await profileManager.saveProfile(name, data);
+      alert('Історію очищено!');
+      location.reload();
+    };
+    // --- Очищення історії для певного серіалу ---
+    const clearSeriesBlock = document.getElementById('clear-series-block');
+    const name = localStorage.getItem('lastProfile');
+    let data = await profileManager.loadProfile(name);
+    if (data.series && Object.keys(data.series).length > 0) {
+      const select = document.createElement('select');
+      Object.keys(data.series).forEach(seriesName => {
+        const opt = document.createElement('option');
+        opt.value = seriesName;
+        opt.textContent = seriesName;
+        select.appendChild(opt);
+      });
+      clearSeriesBlock.appendChild(select);
+      const btn = document.createElement('button');
+      btn.textContent = 'Очистити історію серіалу';
+      btn.onclick = async () => {
+        const seriesName = select.value;
+        if (!seriesName) return;
+        if (!confirm(`Очистити історію для серіалу "${seriesName}"?`)) return;
+        delete data.series[seriesName];
+        await profileManager.saveProfile(name, data);
+        alert('Історію серіалу очищено!');
+        location.reload();
+      };
+      clearSeriesBlock.appendChild(btn);
+    }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').then(reg => {
+          console.log('[PWA] Service Worker registered', reg);
+        }).catch(err => {
+          console.error('[PWA] Service Worker registration failed', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html> 

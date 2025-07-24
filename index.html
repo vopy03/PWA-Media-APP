@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Медіа-каталог</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#121212">
+</head>
+<body>
+  <header>
+    <span>Медіа-каталог</span>
+    <nav class="nav">
+      <a href="index.html" class="nav-link" id="nav-catalog">Каталог</a>
+      <a href="profile.html" class="nav-link" id="nav-profile">Профіль</a>
+      <button class="nav-link" id="nav-choose-folder" style="background:transparent;">Вибрати папку</button>
+    </nav>
+  </header>
+  <div class="container">
+    <div id="media-grid" class="media-grid"></div>
+  </div>
+  <script type="module">
+    import './main.js';
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').then(reg => {
+          console.log('[PWA] Service Worker registered', reg);
+        }).catch(err => {
+          console.error('[PWA] Service Worker registration failed', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
