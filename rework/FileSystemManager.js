@@ -307,6 +307,9 @@ class FileSystemManager {
    */
   async loadDirectoryHandle() {
     console.log('[FileSystemManager] Завантажуємо handle з IndexedDB...');
+    console.log('[FileSystemManager] User Agent:', navigator.userAgent);
+    console.log('[FileSystemManager] Це мобільний пристрій:', this.isMobileDevice());
+    
     try {
       const db = await idb.openDB(this.dbName, this.dbVersion, {
         upgrade(db) {
@@ -318,9 +321,18 @@ class FileSystemManager {
           }
         },
       });
+      
       const handle = await db.get('handles', 'savedDirectory');
       if (handle) {
         console.log('[FileSystemManager] Handle знайдено в IndexedDB:', handle.name);
+        
+        // Отримуємо збережену інформацію
+        try {
+          const directoryInfo = await db.get('directoryInfo', 'savedDirectory');
+          console.log('[FileSystemManager] Збережена інформація:', directoryInfo);
+        } catch (infoError) {
+          console.warn('[FileSystemManager] Не вдалося отримати інформацію про папку:', infoError);
+        }
         
         // Перевіряємо чи досі маємо доступ
         try {
@@ -331,13 +343,22 @@ class FileSystemManager {
             console.log('[FileSystemManager] Доступ до папки підтверджено');
             return handle;
           } else if (permission === 'prompt') {
-            // Спробуємо запитувати дозвіл автоматично
-            console.log('[FileSystemManager] Запитуємо дозвіл автоматично...');
-            const newPermission = await handle.requestPermission({ mode: 'read' });
-            if (newPermission === 'granted') {
-              console.log('[FileSystemManager] Дозвіл надано автоматично');
-              return handle;
+            // На мобільних пристроях спробуємо автоматичний запит
+            if (this.isMobileDevice()) {
+              console.log('[FileSystemManager] Мобільний пристрій - спробуємо автоматичний запит...');
+              try {
+                const newPermission = await handle.requestPermission({ mode: 'read' });
+                console.log('[FileSystemManager] Результат автоматичного запиту:', newPermission);
+                if (newPermission === 'granted') {
+                  console.log('[FileSystemManager] Дозвіл надано автоматично');
+                  return handle;
+                }
+              } catch (autoError) {
+                console.warn('[FileSystemManager] Автоматичний запит не вдався:', autoError);
+              }
             }
+          } else if (permission === 'denied') {
+            console.warn('[FileSystemManager] Дозвіл відхилено користувачем');
           }
           
           console.warn('[FileSystemManager] Немає доступу до збереженої папки');

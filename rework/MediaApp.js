@@ -102,7 +102,7 @@ class MediaApp {
       if (this.isMobileDevice()) {
         this.uiManager.showError(
           'Потрібно підтвердити доступ',
-          'На мобільних пристроях дозволи можуть скидатися. Натисніть "Вибрати папку" для відновлення доступу.'
+          'На мобільних пристроях дозволи можуть скидатися після закриття браузера. Це обмеження браузера Chrome на Android. Спробуйте використовувати режим "Додати на головний екран" для кращої роботи.'
         );
       } else {
         console.log('[MediaApp] Потрібно підтвердити доступ до папки');
@@ -118,10 +118,25 @@ class MediaApp {
   }
 
   /**
-   * Показ селектора папки
+   * Показ селектора папки з попередженням для мобільних
    */
   async showDirectorySelector() {
     console.log('[MediaApp] Показ селектора папки');
+    
+    let warningMessage = '';
+    if (this.isMobileDevice()) {
+      warningMessage = `
+        <div class="mobile-warning">
+          <h3>⚠️ Увага для мобільних пристроїв</h3>
+          <p>На Android пристроях дозволи до файлів можуть скидатися після закриття браузера. Для кращої роботи:</p>
+          <ul>
+            <li>Додайте сайт на головний екран</li>
+            <li>Використовуйте Chrome в режимі "Додаток"</li>
+            <li>Не закривайте браузер повністю</li>
+          </ul>
+        </div>
+      `;
+    }
     
     this.container.innerHTML = `
       <div class="directory-selector">
@@ -130,6 +145,7 @@ class MediaApp {
           Виберіть папку, яка містить ваші фільми та серіали.
           Програма запам'ятає ваш вибір для наступних запусків.
         </p>
+        ${warningMessage}
         <button id="choose-directory-btn" class="choose-directory-btn">
           Вибрати папку
         </button>

@@ -109,4 +109,77 @@ window.clearFileSystemDatabase = async () => {
   } catch (error) {
     console.error('Помилка очищення бази даних:', error);
   }
+};
+
+// Функція для діагностики проблем з дозволами
+window.diagnosePermissions = async () => {
+  console.log('=== ДІАГНОСТИКА ДОЗВОЛІВ ===');
+  console.log('User Agent:', navigator.userAgent);
+  console.log('Це мобільний пристрій:', /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  console.log('Chrome версія:', navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] || 'Невідома');
+  
+  if (mediaApp && mediaApp.fileSystemManager) {
+    console.log('FileSystemManager ініціалізовано:', mediaApp.fileSystemManager.isInitialized);
+    console.log('Коренева папка:', mediaApp.fileSystemManager.rootDirectoryName);
+    
+    if (mediaApp.fileSystemManager.rootHandle) {
+      try {
+        const permission = await mediaApp.fileSystemManager.rootHandle.queryPermission({ mode: 'read' });
+        console.log('Поточний дозвіл:', permission);
+      } catch (error) {
+        console.error('Помилка перевірки дозволу:', error);
+      }
+    }
+  }
+  
+  // Перевіряємо IndexedDB
+  try {
+    const db = await idb.openDB('FileHandles', 2);
+    const handle = await db.get('handles', 'savedDirectory');
+    const info = await db.get('directoryInfo', 'savedDirectory');
+    
+    console.log('Handle в IndexedDB:', handle ? 'Знайдено' : 'Не знайдено');
+    console.log('Інформація в IndexedDB:', info);
+  } catch (error) {
+    console.error('Помилка доступу до IndexedDB:', error);
+  }
+  
+  console.log('=== КІНЕЦЬ ДІАГНОСТИКИ ===');
+};
+
+// Функція для тестування збереження дозволів
+window.testPermissionPersistence = async () => {
+  console.log('=== ТЕСТ ЗБЕРЕЖЕННЯ ДОЗВОЛІВ ===');
+  
+  if (!mediaApp || !mediaApp.fileSystemManager) {
+    console.error('FileSystemManager не ініціалізовано');
+    return;
+  }
+  
+  try {
+    // Спробуємо вибрати папку
+    console.log('1. Вибір папки...');
+    const handle = await mediaApp.fileSystemManager.chooseRootDirectory();
+    console.log('Папка вибрана:', handle.name);
+    
+    // Перевіряємо дозвіл
+    console.log('2. Перевірка дозволу...');
+    const permission = await handle.queryPermission({ mode: 'read' });
+    console.log('Дозвіл після вибору:', permission);
+    
+    // Зберігаємо handle
+    console.log('3. Збереження handle...');
+    await mediaApp.fileSystemManager.saveDirectoryHandle(handle);
+    console.log('Handle збережено');
+    
+    // Перезавантажуємо сторінку через 3 секунди
+    console.log('4. Перезавантаження через 3 секунди...');
+    setTimeout(() => {
+      console.log('Перезавантаження...');
+      location.reload();
+    }, 3000);
+    
+  } catch (error) {
+    console.error('Помилка тестування:', error);
+  }
 }; 
