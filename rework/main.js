@@ -95,4 +95,18 @@ window.testLoadProfiles = async () => {
   } catch (error) {
     console.error('Помилка завантаження профілів:', error);
   }
+};
+
+// Функція для очищення бази даних (для виправлення помилок)
+window.clearFileSystemDatabase = async () => {
+  try {
+    console.log('Очищення бази даних FileSystem...');
+    await idb.deleteDB('FileHandles');
+    console.log('База даних FileHandles видалена');
+    
+    // Перезавантажуємо сторінку
+    location.reload();
+  } catch (error) {
+    console.error('Помилка очищення бази даних:', error);
+  }
 }; 

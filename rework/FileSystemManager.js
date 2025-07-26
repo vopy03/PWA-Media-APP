@@ -7,6 +7,8 @@ class FileSystemManager {
     this.rootHandle = null;
     this.permissionCheckInterval = null;
     this.onPermissionChange = null; // callback для зміни дозволів
+    this.dbName = 'FileHandles';
+    this.dbVersion = 2; // Збільшуємо версію для нової структури
   }
 
   /**
@@ -203,12 +205,38 @@ class FileSystemManager {
   }
 
   /**
+   * Очищення старої бази даних
+   */
+  async clearOldDatabase() {
+    try {
+      console.log('[FileSystemManager] Спроба очищення старої бази даних...');
+      
+      // Закриваємо поточне з'єднання
+      if (this.db) {
+        this.db.close();
+      }
+      
+      // Видаляємо стару базу
+      await idb.deleteDB('FileHandles');
+      console.log('[FileSystemManager] Стара база даних видалена');
+      
+      // Очищаємо змінну
+      this.db = null;
+      
+      return true;
+    } catch (error) {
+      console.warn('[FileSystemManager] Помилка очищення бази даних:', error);
+      return false;
+    }
+  }
+
+  /**
    * Збереження handle в IndexedDB
    */
   async saveDirectoryHandle(handle) {
     console.log('[FileSystemManager] Зберігаємо handle в IndexedDB...');
     try {
-      const db = await idb.openDB('FileHandles', 1, {
+      const db = await idb.openDB(this.dbName, this.dbVersion, {
         upgrade(db) {
           if (!db.objectStoreNames.contains('handles')) {
             db.createObjectStore('handles');
@@ -227,14 +255,50 @@ class FileSystemManager {
         name: handle.name,
         timestamp: new Date().toISOString(),
         userAgent: navigator.userAgent,
-        isMobile: navigator.userAgent.includes('Android') || navigator.userAgent.includes('webOS') || navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') || navigator.userAgent.includes('iPod') || navigator.userAgent.includes('BlackBerry') || navigator.userAgent.includes('IEMobile') || navigator.userAgent.includes('Opera Mini')
+        isMobile: this.isMobileDevice()
       };
       await db.put('directoryInfo', directoryInfo, 'savedDirectory');
       
       console.log('[FileSystemManager] Handle та інформацію збережено в IndexedDB');
     } catch (error) {
       console.error('[FileSystemManager] Помилка збереження handle:', error);
-      throw error;
+      
+      // Якщо помилка пов'язана з базою даних, спробуємо очистити стару
+      if (error.name === 'NotFoundError' || error.message.includes('object stores was not found')) {
+        console.log('[FileSystemManager] Спроба виправити структуру бази даних...');
+        await this.clearOldDatabase();
+        
+        // Повторна спроба збереження
+        try {
+          const db = await idb.openDB(this.dbName, this.dbVersion, {
+            upgrade(db) {
+              if (!db.objectStoreNames.contains('handles')) {
+                db.createObjectStore('handles');
+              }
+              if (!db.objectStoreNames.contains('directoryInfo')) {
+                db.createObjectStore('directoryInfo');
+              }
+            },
+          });
+          
+          await db.put('handles', handle, 'savedDirectory');
+          
+          const directoryInfo = {
+            name: handle.name,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            isMobile: this.isMobileDevice()
+          };
+          await db.put('directoryInfo', directoryInfo, 'savedDirectory');
+          
+          console.log('[FileSystemManager] Handle збережено після виправлення бази даних');
+        } catch (retryError) {
+          console.error('[FileSystemManager] Помилка повторного збереження:', retryError);
+          throw retryError;
+        }
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -244,10 +308,13 @@ class FileSystemManager {
   async loadDirectoryHandle() {
     console.log('[FileSystemManager] Завантажуємо handle з IndexedDB...');
     try {
-      const db = await idb.openDB('FileHandles', 1, {
+      const db = await idb.openDB(this.dbName, this.dbVersion, {
         upgrade(db) {
           if (!db.objectStoreNames.contains('handles')) {
             db.createObjectStore('handles');
+          }
+          if (!db.objectStoreNames.contains('directoryInfo')) {
+            db.createObjectStore('directoryInfo');
           }
         },
       });
@@ -284,6 +351,14 @@ class FileSystemManager {
       return null;
     } catch (error) {
       console.error('[FileSystemManager] Помилка завантаження handle:', error);
+      
+      // Якщо помилка пов'язана з базою даних, спробуємо очистити стару
+      if (error.name === 'NotFoundError' || error.message.includes('object stores was not found')) {
+        console.log('[FileSystemManager] Спроба виправити структуру бази даних...');
+        await this.clearOldDatabase();
+        return null;
+      }
+      
       return null;
     }
   }
