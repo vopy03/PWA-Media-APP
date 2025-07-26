@@ -46,24 +46,52 @@ class UIManager {
   }
 
   /**
-   * Показ повідомлення про помилку
+   * Показ помилки
    */
-  showError(message, details = null) {
+  showError(message, details = null, errorType = 'general') {
     this.clear();
+    this.currentView = 'error';
+    
+    let buttonHtml = '';
+    if (errorType === 'retry-mobile-permission') {
+      buttonHtml = `
+        <button id="retry-permission-btn" class="retry-btn">Відновити доступ</button>
+        <button id="choose-new-btn" class="secondary-btn">Вибрати нову папку</button>
+      `;
+    } else {
+      buttonHtml = `
+        <button id="retry-access-btn" class="retry-btn">Спробувати відновити доступ</button>
+      `;
+    }
+    
     this.container.innerHTML = `
       <div class="error-container">
-        <div class="error-icon">❌</div>
-        <h3 class="error-title">Помилка</h3>
+        <h2 class="error-title">Помилка!</h2>
         <p class="error-message">${message}</p>
         ${details ? `<details class="error-details"><summary>Деталі</summary><pre>${details}</pre></details>` : ''}
-        <button id="retry-access-btn" class="retry-btn">Спробувати відновити доступ</button>
+        ${buttonHtml}
       </div>
     `;
     
-    // Додаємо обробник для кнопки відновлення
-    const retryBtn = this.container.querySelector('#retry-access-btn');
-    if (retryBtn && this.onItemClick) {
-      retryBtn.addEventListener('click', () => {
+    // Додаємо обробники подій
+    const retryPermissionBtn = this.container.querySelector('#retry-permission-btn');
+    const chooseNewBtn = this.container.querySelector('#choose-new-btn');
+    const retryAccessBtn = this.container.querySelector('#retry-access-btn');
+    
+    if (retryPermissionBtn && this.onItemClick) {
+      retryPermissionBtn.addEventListener('click', () => {
+        this.onItemClick('retry-mobile-permission');
+      });
+    }
+    
+    if (chooseNewBtn && this.onItemClick) {
+      chooseNewBtn.addEventListener('click', () => {
+        this.onItemClick('choose-new-directory');
+      });
+    }
+    
+    if (retryAccessBtn && this.onItemClick) {
+      retryAccessBtn.addEventListener('click', () => {
         this.onItemClick('retry-access');
       });
     }

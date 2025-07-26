@@ -343,9 +343,15 @@ class FileSystemManager {
             console.log('[FileSystemManager] Доступ до папки підтверджено');
             return handle;
           } else if (permission === 'prompt') {
-            // На мобільних пристроях спробуємо автоматичний запит
+            // На мобільних пристроях НЕ робимо автоматичний запит
+            // оскільки це викликає SecurityError
             if (this.isMobileDevice()) {
-              console.log('[FileSystemManager] Мобільний пристрій - спробуємо автоматичний запит...');
+              console.log('[FileSystemManager] Мобільний пристрій - автоматичний запит не дозволений');
+              console.log('[FileSystemManager] Потрібна взаємодія користувача для запиту дозволу');
+              return null;
+            } else {
+              // На десктопі спробуємо автоматичний запит
+              console.log('[FileSystemManager] Десктоп - спробуємо автоматичний запит...');
               try {
                 const newPermission = await handle.requestPermission({ mode: 'read' });
                 console.log('[FileSystemManager] Результат автоматичного запиту:', newPermission);

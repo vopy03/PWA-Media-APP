@@ -98,11 +98,12 @@ class MediaApp {
         'Будь ласка, виберіть папку знову та надайте дозвіл на доступ.'
       );
     } else if (permission === 'prompt') {
-      // На мобільних пристроях показуємо спеціальне повідомлення
+      // На мобільних пристроях показуємо спеціальне повідомлення з кнопкою відновлення
       if (this.isMobileDevice()) {
         this.uiManager.showError(
           'Потрібно підтвердити доступ',
-          'На мобільних пристроях дозволи можуть скидатися після закриття браузера. Це обмеження браузера Chrome на Android. Спробуйте використовувати режим "Додати на головний екран" для кращої роботи.'
+          'На мобільних пристроях дозволи можуть скидатися після закриття браузера. Натисніть "Відновити доступ" щоб підтвердити дозвіл до збереженої папки.',
+          'retry-mobile-permission'
         );
       } else {
         console.log('[MediaApp] Потрібно підтвердити доступ до папки');
@@ -127,12 +128,12 @@ class MediaApp {
     if (this.isMobileDevice()) {
       warningMessage = `
         <div class="mobile-warning">
-          <h3>⚠️ Увага для мобільних пристроїв</h3>
-          <p>На Android пристроях дозволи до файлів можуть скидатися після закриття браузера. Для кращої роботи:</p>
+          <h3>📱 Оптимізація для мобільних пристроїв</h3>
+          <p>Для кращої роботи на мобільних пристроях:</p>
           <ul>
-            <li>Додайте сайт на головний екран</li>
-            <li>Використовуйте Chrome в режимі "Додаток"</li>
-            <li>Не закривайте браузер повністю</li>
+            <li>Додайте сайт на головний екран для швидкого доступу</li>
+            <li>Якщо доступ зникне - натисніть "Відновити доступ"</li>
+            <li>Програма запам'ятає ваш вибір для наступних запусків</li>
           </ul>
         </div>
       `;
@@ -334,41 +335,74 @@ class MediaApp {
   /**
    * Обробка кліків по елементам
    */
-  async handleItemClick(type, path) {
-    console.log(`[MediaApp] Клік: ${type} - ${path}`);
+  handleItemClick(action, data = null) {
+    console.log('[MediaApp] Обробка кліку:', action, data);
+    
+    switch (action) {
+      case 'retry-access':
+        this.retryAccess();
+        break;
+      case 'retry-mobile-permission':
+        this.retryMobilePermission();
+        break;
+      case 'choose-new-directory':
+        this.showDirectorySelector();
+        break;
+      case 'play-video':
+        this.playVideo(data);
+        break;
+      case 'select-profile':
+        this.selectProfile(data);
+        break;
+      case 'create-profile':
+        this.createProfile(data);
+        break;
+      case 'clear-history':
+        this.clearHistory();
+        break;
+      case 'back-to-catalog':
+        this.showMediaCatalog();
+        break;
+      default:
+        console.warn('[MediaApp] Невідома дія:', action);
+    }
+  }
+
+  /**
+   * Відновлення доступу для мобільних пристроїв
+   */
+  async retryMobilePermission() {
+    console.log('[MediaApp] Спроба відновлення доступу на мобільному...');
     
     try {
-      switch (type) {
-        case 'movie':
-          await this.playMovie(path);
-          break;
-          
-        case 'series':
-          await this.showSeries(path);
-          break;
-          
-        case 'episode':
-          await this.playEpisode(path);
-          break;
-          
-        case 'resume':
-          await this.resumeLastWatched(path);
-          break;
-          
-        case 'retry-access':
-          await this.retryAccess();
-          break;
-          
-        case 'back':
-          this.goBack();
-          break;
-          
-        default:
-          console.warn(`[MediaApp] Невідомий тип кліку: ${type}`);
+      this.uiManager.showLoading('Відновлення доступу...');
+      
+      // Спробуємо завантажити збережений handle
+      const handle = await this.fileSystemManager.loadDirectoryHandle();
+      
+      if (handle) {
+        // Запитуємо дозвіл через взаємодію користувача
+        console.log('[MediaApp] Запитуємо дозвіл через взаємодію користувача...');
+        const permission = await handle.requestPermission({ mode: 'read' });
+        
+        if (permission === 'granted') {
+          console.log('[MediaApp] Дозвіл надано! Відновлюємо доступ...');
+          this.fileSystemManager.rootHandle = handle;
+          await this.loadMediaData();
+          this.showMediaCatalog();
+          return;
+        } else {
+          console.log('[MediaApp] Дозвіл відхилено:', permission);
+        }
       }
+      
+      // Якщо не вдалося відновити, показуємо селектор
+      console.log('[MediaApp] Не вдалося відновити доступ, показуємо селектор...');
+      this.showDirectorySelector();
+      
     } catch (error) {
-      console.error('[MediaApp] Помилка обробки кліку:', error);
-      this.uiManager.showError('Помилка відтворення', error.message);
+      console.error('[MediaApp] Помилка відновлення доступу:', error);
+      this.showDirectorySelector();
     }
   }
 
