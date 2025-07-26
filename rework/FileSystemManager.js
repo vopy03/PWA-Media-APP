@@ -35,6 +35,25 @@ class FileSystemManager {
         
         return true;
       }
+      
+      // Перевіряємо чи є handle в IndexedDB, але з дозволом prompt
+      try {
+        const db = await idb.openDB(this.dbName, this.dbVersion);
+        const handle = await db.get('handles', 'savedDirectory');
+        if (handle) {
+          this.rootHandle = handle;
+          console.log('[FileSystemManager] Handle знайдено, але дозвіл prompt:', handle.name);
+          
+          // На мобільних пристроях запускаємо частішу перевірку
+          const checkInterval = this.isMobileDevice() ? 5000 : 8000;
+          this.startPermissionCheck(checkInterval);
+          
+          return true; // Повертаємо true щоб показати повідомлення про відновлення
+        }
+      } catch (dbError) {
+        console.warn('[FileSystemManager] Помилка перевірки IndexedDB:', dbError);
+      }
+      
       console.log('[FileSystemManager] Збережений handle не знайдено');
       return false;
     } catch (error) {
@@ -348,7 +367,8 @@ class FileSystemManager {
             if (this.isMobileDevice()) {
               console.log('[FileSystemManager] Мобільний пристрій - автоматичний запит не дозволений');
               console.log('[FileSystemManager] Потрібна взаємодія користувача для запиту дозволу');
-              return null;
+              // Повертаємо handle навіть з дозволом prompt для мобільних
+              return handle;
             } else {
               // На десктопі спробуємо автоматичний запит
               console.log('[FileSystemManager] Десктоп - спробуємо автоматичний запит...');
