@@ -175,6 +175,12 @@ class ProfileManager {
       return;
     }
 
+    // Перевіряємо валідність даних
+    if (!mediaPath || !position || isNaN(position) || !duration || isNaN(duration) || duration <= 0) {
+      console.log('[ProfileManager] Пропускаємо збереження - неповні або невалідні дані:', { mediaPath, position, duration });
+      return;
+    }
+
     console.log(`[ProfileManager] Додавання в історію: ${mediaPath} (${position}s/${duration}s)`);
     
     const historyEntry = {

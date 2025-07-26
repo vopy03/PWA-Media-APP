@@ -272,4 +272,39 @@ input, select {
   .history-item .history-title {
     font-size: 0.97rem;
   }
+}
+/* Основний контейнер додатку */
+#app {
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Контейнер помилки */
+.error-container {
+  text-align: center;
+  padding: 40px 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.error-container h2 {
+  color: #dc3545;
+  margin-bottom: 16px;
+}
+
+.error-container button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+.error-container button:hover {
+  background: #0056b3;
 } 

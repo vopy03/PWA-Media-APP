@@ -31,7 +31,7 @@ class FileSystemManager {
         
         // На мобільних пристроях запускаємо частішу перевірку
         const checkInterval = this.isMobileDevice() ? 5000 : 8000;
-        this.startPermissionCheck(checkInterval);
+        // this.startPermissionCheck(checkInterval);
         
         return true;
       }
@@ -46,7 +46,7 @@ class FileSystemManager {
           
           // На мобільних пристроях запускаємо частішу перевірку
           const checkInterval = this.isMobileDevice() ? 5000 : 8000;
-          this.startPermissionCheck(checkInterval);
+        //   this.startPermissionCheck(checkInterval);
           
           return true; // Повертаємо true щоб показати повідомлення про відновлення
         }
@@ -73,7 +73,7 @@ class FileSystemManager {
       console.log('[FileSystemManager] Папку вибрано:', handle.name);
       
       await this.saveDirectoryHandle(handle);
-      this.startPermissionCheck();
+    //   this.startPermissionCheck();
       
       return handle;
     } catch (error) {

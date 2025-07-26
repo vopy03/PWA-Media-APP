@@ -332,6 +332,7 @@ class MediaAnalyzer {
    */
   async analyzeSeries(seriesDirectory) {
     console.log(`[MediaAnalyzer] Аналіз серіалу: ${seriesDirectory.name}`);
+    console.log('[MediaAnalyzer] Дані серіалу:', seriesDirectory);
     
     const seriesInfo = {
       title: this.cleanSeriesTitle(seriesDirectory.name),
@@ -342,6 +343,8 @@ class MediaAnalyzer {
       seasons: [],
       totalEpisodes: 0
     };
+    
+    console.log('[MediaAnalyzer] Створена інформація про серіал:', seriesInfo);
 
     try {
       // Скануємо папку серіалу
@@ -548,7 +551,17 @@ class MediaAnalyzer {
    * Очищення назви серіалу
    */
   cleanSeriesTitle(name) {
-    return this.cleanTitle(name);
+    console.log('[MediaAnalyzer] Очищення назви серіалу:', name);
+    
+    if (!name) {
+      console.warn('[MediaAnalyzer] Назва серіалу порожня');
+      return 'Невідомий серіал';
+    }
+    
+    const cleaned = this.cleanTitle(name);
+    console.log('[MediaAnalyzer] Очищена назва серіалу:', cleaned);
+    
+    return cleaned || 'Невідомий серіал';
   }
 
   /**

@@ -3,26 +3,25 @@
  * Об'єднує всі компоненти та керує загальною логікою
  */
 class MediaApp {
-  constructor(container) {
-    this.container = container;
-    this.currentState = 'initializing';
-    
-    // Ініціалізація менеджерів
+  constructor() {
     this.fileSystemManager = new FileSystemManager();
     this.profileManager = new ProfileManager();
     this.mediaAnalyzer = new MediaAnalyzer();
-    this.uiManager = new UIManager(container);
+    this.uiManager = new UIManager(document.getElementById('app-container'));
+    this.cacheManager = new CacheManager();
     
-    // Налаштування callback'ів
-    this.setupCallbacks();
+    this.mediaData = { movies: [], series: [] };
+    this.currentState = 'initializing';
     
-    // Стан додатку
-    this.currentProfile = null;
-    this.mediaData = {
-      movies: [],
-      series: [],
-      lastWatched: null
-    };
+    // Встановлюємо обробники подій
+    this.uiManager.setItemClickHandler((action, data) => this.handleItemClick(action, data));
+    this.uiManager.setProfileSelectHandler((profileName, createNew = false) => {
+      if (createNew) {
+        this.createProfile(profileName);
+      } else {
+        this.selectProfile(profileName);
+      }
+    });
   }
 
   /**
@@ -34,6 +33,9 @@ class MediaApp {
     try {
       this.currentState = 'initializing';
       this.uiManager.showLoading('Ініціалізація...');
+      
+      // Ініціалізуємо CacheManager
+      await this.cacheManager.initialize();
       
       // Ініціалізація профілів
       const profileInitialized = await this.profileManager.initialize();
@@ -260,26 +262,139 @@ class MediaApp {
    */
   async loadMediaData() {
     console.log('[MediaApp] Завантаження медіа даних...');
-    
     try {
+      if (this.cacheManager.isCacheValid()) {
+        console.log('[MediaApp] Використовуємо кешовані дані');
+        this.mediaData = this.cacheManager.getCachedData();
+        this.showMediaCatalog(); // Показуємо каталог з кешем
+        
+        // Завжди запускаємо фонове оновлення для відновлення FileSystemHandle
+        this.updateMediaDataInBackground();
+        return;
+      }
+      
+      if (this.cacheManager.getCachedData() && !this.cacheManager.isUpdating()) {
+        console.log('[MediaApp] Показуємо застарілий кеш, оновлюємо на фоні');
+        this.mediaData = this.cacheManager.getCachedData();
+        this.showMediaCatalog(); // Показуємо каталог з кешем
+        this.updateMediaDataInBackground();
+        return;
+      }
+      
       this.uiManager.showLoading('Завантаження медіа...');
-      
-      // Аналізуємо структуру папки
-      const analysis = await this.mediaAnalyzer.analyzeDirectoryStructure(
-        this.fileSystemManager.rootHandle
-      );
-      
-      // Завантажуємо прогрес для кожного елемента
-      this.mediaData.movies = await this.loadMoviesWithProgress(analysis.movies);
-      this.mediaData.series = await this.loadSeriesWithProgress(analysis.series);
-      this.mediaData.lastWatched = await this.profileManager.getLastWatched();
-      
-      console.log(`[MediaApp] Завантажено: ${this.mediaData.movies.length} фільмів, ${this.mediaData.series.length} серіалів`);
-      
+      await this.loadMediaDataFromSource();
     } catch (error) {
       console.error('[MediaApp] Помилка завантаження медіа:', error);
       throw error;
     }
+  }
+
+
+
+  /**
+   * Завантаження медіа даних з джерела
+   */
+  async loadMediaDataFromSource() {
+    console.log('[MediaApp] Завантаження медіа даних з джерела...');
+    try {
+      const data = await this.mediaAnalyzer.analyzeDirectoryStructure(this.fileSystemManager.rootHandle);
+      
+      // Завантажуємо прогрес для кожного елемента
+      data.movies = await this.loadMoviesWithProgress(data.movies);
+      data.series = await this.loadSeriesWithProgress(data.series);
+      
+      // Завантажуємо останнє переглянуте
+      data.lastWatched = await this.profileManager.getLastWatched();
+      
+      this.mediaData = data;
+      
+      // Зберігаємо в кеш
+      this.cacheManager.setCachedData(data);
+      
+      console.log(`[MediaApp] Завантажено: ${data.movies.length} фільмів, ${data.series.length} серіалів`);
+    } catch (error) {
+      console.error('[MediaApp] Помилка завантаження з джерела:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Оновлення медіа даних на фоні
+   */
+  async updateMediaDataInBackground() {
+    console.log('[MediaApp] Оновлення медіа даних на фоні...');
+    this.cacheManager.setUpdatingStatus(true);
+    
+    try {
+      const data = await this.mediaAnalyzer.analyzeDirectoryStructure(this.fileSystemManager.rootHandle);
+      
+      // Завантажуємо прогрес для кожного елемента
+      data.movies = await this.loadMoviesWithProgress(data.movies);
+      data.series = await this.loadSeriesWithProgress(data.series);
+      
+      // Завантажуємо останнє переглянуте
+      data.lastWatched = await this.profileManager.getLastWatched();
+      
+      // Порівнюємо з поточними даними
+      const hasChanges = this.hasDataChanges(data);
+      
+      if (hasChanges) {
+        console.log('[MediaApp] Виявлено зміни в даних, оновлюємо каталог');
+        this.mediaData = data;
+        this.cacheManager.setCachedData(data); // Оновлюємо timestamp
+        
+        // Оновлюємо UI
+        this.showMediaCatalog();
+      } else {
+        console.log('[MediaApp] Змін не виявлено, оновлюємо тільки дані без зміни timestamp');
+        this.cacheManager.updateDataWithoutTimestamp(data); // Не оновлюємо timestamp
+      }
+      
+      console.log('[MediaApp] Фонове оновлення завершено');
+    } catch (error) {
+      console.error('[MediaApp] Помилка фонового оновлення:', error);
+    } finally {
+      this.cacheManager.setUpdatingStatus(false);
+      // Оновлюємо UI щоб прибрати індикатор оновлення
+      this.showMediaCatalog();
+    }
+  }
+
+  /**
+   * Перевірка чи є зміни в даних
+   */
+  hasDataChanges(newData) {
+    if (!this.mediaData) return true;
+    
+    // Порівнюємо кількість фільмів
+    if (this.mediaData.movies.length !== newData.movies.length) {
+      console.log('[MediaApp] Зміна кількості фільмів:', this.mediaData.movies.length, '→', newData.movies.length);
+      return true;
+    }
+    
+    // Порівнюємо кількість серіалів
+    if (this.mediaData.series.length !== newData.series.length) {
+      console.log('[MediaApp] Зміна кількості серіалів:', this.mediaData.series.length, '→', newData.series.length);
+      return true;
+    }
+    
+    // Порівнюємо назви фільмів
+    const oldMovieNames = this.mediaData.movies.map(m => m.name).sort();
+    const newMovieNames = newData.movies.map(m => m.name).sort();
+    if (JSON.stringify(oldMovieNames) !== JSON.stringify(newMovieNames)) {
+      console.log('[MediaApp] Зміна в фільмах');
+      return true;
+    }
+    
+    // Порівнюємо назви серіалів
+    const oldSeriesNames = this.mediaData.series.map(s => s.title).sort();
+    const newSeriesNames = newData.series.map(s => s.title).sort();
+    if (JSON.stringify(oldSeriesNames) !== JSON.stringify(newSeriesNames)) {
+      console.log('[MediaApp] Зміна в серіалах');
+      return true;
+    }
+    
+    return false;
   }
 
   /**
@@ -337,10 +452,13 @@ class MediaApp {
    */
   showMediaCatalog() {
     console.log('[MediaApp] Показ каталогу медіа');
+    console.log('[MediaApp] lastWatched:', this.mediaData.lastWatched);
+    this.currentState = 'ready';
     this.uiManager.renderMediaCatalog(
-      this.mediaData.movies,
-      this.mediaData.series,
-      this.mediaData.lastWatched
+      this.mediaData.movies || [], 
+      this.mediaData.series || [], 
+      this.mediaData.lastWatched,
+      this.cacheManager.isUpdating()
     );
   }
 
@@ -360,8 +478,29 @@ class MediaApp {
       case 'choose-new-directory':
         this.showDirectorySelector();
         break;
+      case 'refresh-cache':
+        this.refreshCache();
+        break;
+      case 'show-series':
+        this.showSeries(data.path);
+        break;
+      case 'series':
+        this.showSeries(data);
+        break;
       case 'play-video':
         this.playVideo(data);
+        break;
+      case 'movie':
+        this.playMovie(data);
+        break;
+      case 'episode':
+        this.playEpisode(data);
+        break;
+      case 'resume':
+        this.resumeLastWatched(data);
+        break;
+      case 'back':
+        this.goBack();
         break;
       case 'select-profile':
         this.selectProfile(data);
@@ -377,6 +516,24 @@ class MediaApp {
         break;
       default:
         console.warn('[MediaApp] Невідома дія:', action);
+    }
+  }
+
+  /**
+   * Оновлення кешу
+   */
+  async refreshCache() {
+    console.log('[MediaApp] Оновлення кешу...');
+    this.cacheManager.clearCache();
+    this.uiManager.showLoading('Оновлення каталогу...');
+    
+    try {
+      await this.loadMediaDataFromSource();
+      this.showMediaCatalog();
+      console.log('[MediaApp] Кеш оновлено');
+    } catch (error) {
+      console.error('[MediaApp] Помилка оновлення кешу:', error);
+      this.uiManager.showError('Помилка оновлення', error.message);
     }
   }
 
@@ -445,14 +602,53 @@ class MediaApp {
   }
 
   /**
+   * Відтворення відео (загальний метод)
+   */
+  async playVideo(data) {
+    console.log('[MediaApp] Відтворення відео:', data);
+    
+    if (!data || !data.type || !data.path) {
+      console.error('[MediaApp] Неправильні дані для відтворення:', data);
+      return;
+    }
+    
+    try {
+      switch (data.type) {
+        case 'movie':
+          await this.playMovie(data.path);
+          break;
+        case 'series':
+          await this.showSeries(data.path);
+          break;
+        case 'episode':
+          await this.playEpisode(data.path);
+          break;
+        default:
+          console.warn('[MediaApp] Невідомий тип відео:', data.type);
+      }
+    } catch (error) {
+      console.error('[MediaApp] Помилка відтворення відео:', error);
+      this.uiManager.showError('Помилка відтворення', error.message);
+    }
+  }
+
+  /**
    * Відтворення фільму
    */
   async playMovie(path) {
     console.log(`[MediaApp] Відтворення фільму: ${path}`);
+    console.log('[MediaApp] Доступні фільми:', this.mediaData.movies.map(m => ({
+      title: m.title,
+      path: m.path,
+      name: m.name,
+      fullPath: `${m.path}/${m.name}`
+    })));
     
     // Знаходимо фільм
     const movie = this.mediaData.movies.find(m => `${m.path}/${m.name}` === path);
     if (!movie) {
+      console.error('[MediaApp] Фільм не знайдено. Шукаємо:', path);
+      console.error('[MediaApp] Доступні шляхи:', this.mediaData.movies.map(m => `${m.path}/${m.name}`));
       throw new Error('Фільм не знайдено');
     }
     
@@ -472,10 +668,18 @@ class MediaApp {
    */
   async showSeries(path) {
     console.log(`[MediaApp] Показ серіалу: ${path}`);
+    console.log('[MediaApp] Доступні серіали:', this.mediaData.series.map(s => ({
+      title: s.title,
+      path: s.path,
+      originalName: s.originalName,
+      fullPath: `${s.path}/${s.originalName}`
+    })));
     
     // Знаходимо серіал
     const series = this.mediaData.series.find(s => `${s.path}/${s.originalName}` === path);
     if (!series) {
+      console.error('[MediaApp] Серіал не знайдено. Шукаємо:', path);
+      console.error('[MediaApp] Доступні шляхи:', this.mediaData.series.map(s => `${s.path}/${s.originalName}`));
       throw new Error('Серіал не знайдено');
     }
     
@@ -488,6 +692,17 @@ class MediaApp {
    */
   async playEpisode(path) {
     console.log(`[MediaApp] Відтворення епізоду: ${path}`);
+    console.log('[MediaApp] Доступні серіали для пошуку епізоду:', this.mediaData.series.map(s => ({
+      title: s.title,
+      seasons: s.seasons.map(season => ({
+        name: season.name,
+        episodes: season.episodes.map(ep => ({
+          name: ep.name,
+          path: ep.path,
+          fullPath: `${ep.path}/${ep.name}`
+        }))
+      }))
+    })));
     
     // Знаходимо епізод в серіалах
     let episode = null;
@@ -500,6 +715,12 @@ class MediaApp {
     }
     
     if (!episode) {
+      console.error('[MediaApp] Епізод не знайдено. Шукаємо:', path);
+      console.error('[MediaApp] Доступні епізоди:', this.mediaData.series.flatMap(s => 
+        s.seasons.flatMap(season => 
+          season.episodes.map(ep => `${ep.path}/${ep.name}`)
+        )
+      ));
       throw new Error('Епізод не знайдено');
     }
     
@@ -546,12 +767,16 @@ class MediaApp {
    */
   goBack() {
     console.log('[MediaApp] Повернення назад');
+    console.log('[MediaApp] Поточний view:', this.uiManager.currentView);
     
     if (this.uiManager.currentView === 'video-player' || 
         this.uiManager.currentView === 'series-page') {
       this.showMediaCatalog();
-    } else if (this.uiManager.currentView === 'media-catalog') {
+    } else if (this.uiManager.currentView === 'catalog') {
       this.showProfileSelector();
+    } else {
+      // За замовчуванням повертаємося до каталогу
+      this.showMediaCatalog();
     }
   }
 
@@ -561,7 +786,7 @@ class MediaApp {
   async setupVideoPlayer(fileHandle) {
     try {
       const file = await this.fileSystemManager.getFile(fileHandle);
-      const videoElement = this.container.querySelector('#video-element');
+      const videoElement = this.uiManager.container.querySelector('#video-element');
       
       if (videoElement) {
         const url = URL.createObjectURL(file);
@@ -673,6 +898,12 @@ class MediaApp {
    */
   async savePlaybackProgress(fileHandle, currentTime, duration) {
     if (!this.currentProfile) return;
+    
+    // Перевіряємо валідність даних
+    if (!currentTime || isNaN(currentTime) || !duration || isNaN(duration) || duration <= 0) {
+      console.log('[MediaApp] Пропускаємо збереження - неповні або невалідні дані:', { currentTime, duration });
+      return;
+    }
     
     try {
       const fullPath = this.getFullPath(fileHandle);

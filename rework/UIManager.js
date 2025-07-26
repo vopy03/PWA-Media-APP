@@ -149,32 +149,98 @@ class UIManager {
   /**
    * Рендеринг каталогу медіа
    */
-  renderMediaCatalog(movies, series, lastWatched = null) {
+  renderMediaCatalog(movies, series, lastWatched = null, isUpdating = false) {
+    console.log('[UIManager] renderMediaCatalog:', { movies, series, lastWatched, isUpdating });
+    
     this.clear();
-    this.currentView = 'media-catalog';
+    this.currentView = 'catalog';
+    
+    // Отримуємо інформацію про кеш
+    const cacheInfo = window.mediaApp?.cacheManager?.getCacheInfo();
+    const cacheStatus = cacheInfo ? 
+      `<div class="cache-status">
+        <span class="cache-indicator ${cacheInfo.isValid ? 'valid' : 'stale'}"></span>
+        ${cacheInfo.hasData ? `Кеш: ${cacheInfo.ageFormatted}` : 'Кеш відсутній'}
+        ${isUpdating ? ' (оновлення...)' : ''}
+      </div>` : '';
     
     this.container.innerHTML = `
-      <div class="media-catalog">
-        ${lastWatched ? this.renderLastWatched(lastWatched) : ''}
-        
-        <div class="media-section">
-          <h2 class="section-title">🎬 Фільми (${movies.length})</h2>
-          <div class="media-grid movies-grid">
-            ${movies.map(movie => this.renderMovieCard(movie)).join('')}
-          </div>
+      <div class="catalog-header">
+        <h1 class="catalog-title">Медіа каталог</h1>
+        <div class="catalog-controls">
+          ${cacheStatus}
+          <button class="refresh-btn ${isUpdating ? 'updating' : ''}" data-action="refresh-cache">
+            ${isUpdating ? '⏳' : '🔄'}
+          </button>
         </div>
-        
-        <div class="media-section">
-          <h2 class="section-title">📺 Серіали (${series.length})</h2>
-          <div class="media-grid series-grid">
-            ${series.map(seriesItem => this.renderSeriesCard(seriesItem)).join('')}
-          </div>
+      </div>
+      
+      ${lastWatched ? this.renderLastWatched(lastWatched) : ''}
+      
+      <div class="media-section">
+        <h2 class="section-title">🎬 Фільми (${movies.length})</h2>
+        <div class="media-grid movies-grid">
+          ${movies.map(movie => this.renderMovieCard(movie)).join('')}
+        </div>
+      </div>
+      
+      <div class="media-section">
+        <h2 class="section-title">📺 Серіали (${series.length})</h2>
+        <div class="media-grid series-grid">
+          ${series.map(seriesItem => this.renderSeriesCard(seriesItem)).join('')}
         </div>
       </div>
     `;
-
-    // Додаємо обробники подій
+    
     this.addMediaEventListeners();
+  }
+
+  /**
+   * Рендеринг картки медіа
+   */
+  renderMediaCard(item, type) {
+    console.log('[UIManager] renderMediaCard:', { item, type });
+    
+    const progress = item.progress || 0;
+    const progressPercent = progress > 0 ? Math.round((progress.position / progress.duration) * 100) : 0;
+    
+    let title, subtitle, icon;
+    
+    if (type === 'movie') {
+      title = item.title || item.name;
+      subtitle = item.year ? `Рік: ${item.year}` : '';
+      icon = '🎬';
+      console.log('[UIManager] Дані фільму:', item);
+    } else if (type === 'series') {
+      title = item.title || item.name || 'Невідомий серіал';
+      const totalEpisodes = item.seasons ? item.seasons.reduce((sum, season) => sum + season.episodes.length, 0) : 0;
+      subtitle = `${item.seasons ? item.seasons.length : 0} сезонів, ${totalEpisodes} епізодів`;
+      icon = '📺';
+      console.log('[UIManager] Дані серіалу:', item);
+    }
+    
+    const dataPath = type === 'series' ? `${item.path}/${item.originalName}` : 
+                    type === 'movie' ? `${item.path}/${item.name}` : 
+                    (item.path || item.name);
+    console.log('[UIManager] Створена картка з data-path:', dataPath);
+    
+    return `
+      <div class="media-card" data-type="${type}" data-path="${dataPath}">
+        <div class="media-thumbnail">
+          <div class="media-icon">${icon}</div>
+          ${progress > 0 ? `
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progressPercent}%"></div>
+            </div>
+          ` : ''}
+        </div>
+        <div class="media-info">
+          <div class="media-title">${title}</div>
+          ${subtitle ? `<div class="media-subtitle">${subtitle}</div>` : ''}
+          ${progress > 0 ? `<div class="media-progress">Переглянуто ${progressPercent}%</div>` : ''}
+        </div>
+      </div>
+    `;
   }
 
   /**
@@ -397,7 +463,13 @@ class UIManager {
         const path = card.dataset.path;
         
         if (this.onItemClick) {
-          this.onItemClick(type, path);
+          if (type === 'series') {
+            this.onItemClick('show-series', { path: path });
+          } else if (type === 'movie') {
+            this.onItemClick('play-video', { type: 'movie', path: path });
+          } else {
+            this.onItemClick(type, path);
+          }
         }
       });
     });
@@ -435,7 +507,7 @@ class UIManager {
         const path = card.dataset.path;
         
         if (this.onItemClick) {
-          this.onItemClick(type, path);
+          this.onItemClick('episode', path);
         }
       });
     });

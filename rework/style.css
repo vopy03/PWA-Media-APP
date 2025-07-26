@@ -13,11 +13,12 @@ body {
   line-height: 1.6;
 }
 
+/* Основний контейнер додатку */
 #app-container {
+  width: 100%;
   min-height: 100vh;
   padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* Завантаження */
@@ -724,4 +725,88 @@ body {
     font-size: 16px;
     line-height: 1.4;
   }
+} 
+
+/* Заголовок каталогу */
+.catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #333;
+}
+
+.catalog-title {
+  font-size: 28px;
+  color: #ffffff;
+  margin: 0;
+}
+
+.refresh-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn:hover {
+  background: #0056b3;
+  transform: scale(1.1);
+}
+
+.refresh-btn:active {
+  transform: scale(0.95);
+} 
+
+.refresh-btn.updating {
+  animation: spin 1s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+} 
+
+/* Індикатор кешу */
+.cache-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.cache-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cache-indicator.valid {
+  background-color: #4CAF50;
+}
+
+.cache-indicator.stale {
+  background-color: #FF9800;
+}
+
+.catalog-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 } 

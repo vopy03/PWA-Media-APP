@@ -4,6 +4,7 @@ import { ProfileManager } from './ProfileManager.js';
 import { MediaAnalyzer } from './MediaAnalyzer.js';
 import { UIManager } from './UIManager.js';
 import { MediaApp } from './MediaApp.js';
+import { CacheManager } from './CacheManager.js';
 
 // Глобальні змінні для доступу з консолі
 window.FileSystemManager = FileSystemManager;
@@ -11,6 +12,7 @@ window.ProfileManager = ProfileManager;
 window.MediaAnalyzer = MediaAnalyzer;
 window.UIManager = UIManager;
 window.MediaApp = MediaApp;
+window.CacheManager = CacheManager;
 
 let mediaApp = null;
 
@@ -26,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   try {
     // Створюємо головний клас додатку
-    mediaApp = new MediaApp(container);
+    mediaApp = new MediaApp();
     
     // Робимо доступним глобально для тестування
     window.mediaApp = mediaApp;
@@ -40,13 +42,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('[Main] Помилка ініціалізації додатку:', error);
     
     // Показуємо помилку користувачу
-    container.innerHTML = `
-      <div class="error-container">
-        <h2>Помилка запуску додатку</h2>
-        <p>${error.message}</p>
-        <button onclick="location.reload()">Перезавантажити</button>
-      </div>
-    `;
+    const appContainer = document.getElementById('app-container');
+    if (appContainer) {
+      appContainer.innerHTML = `
+        <div class="error-container">
+          <h2>Помилка запуску додатку</h2>
+          <p>${error.message}</p>
+          <button onclick="location.reload()">Перезавантажити</button>
+        </div>
+      `;
+    }
   }
 });
 
@@ -182,4 +187,30 @@ window.testPermissionPersistence = async () => {
   } catch (error) {
     console.error('Помилка тестування:', error);
   }
+}; 
+
+// Функція для тестування кешу
+window.testCache = () => {
+  if (!mediaApp) {
+    console.error('Додаток не ініціалізовано');
+    return;
+  }
+  
+  const cacheInfo = mediaApp.cacheManager.getCacheInfo();
+  console.log('Інформація про кеш:', cacheInfo);
+  
+  if (cacheInfo.hasData) {
+    console.log('Кешовані дані:', mediaApp.cacheManager.getCachedData());
+  }
+};
+
+// Функція для очищення кешу
+window.clearCache = () => {
+  if (!mediaApp) {
+    console.error('Додаток не ініціалізовано');
+    return;
+  }
+  
+  mediaApp.cacheManager.clearCache();
+  console.log('Кеш очищено');
 }; 
