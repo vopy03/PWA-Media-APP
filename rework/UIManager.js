@@ -56,8 +56,17 @@ class UIManager {
         <h3 class="error-title">Помилка</h3>
         <p class="error-message">${message}</p>
         ${details ? `<details class="error-details"><summary>Деталі</summary><pre>${details}</pre></details>` : ''}
+        <button id="retry-access-btn" class="retry-btn">Спробувати відновити доступ</button>
       </div>
     `;
+    
+    // Додаємо обробник для кнопки відновлення
+    const retryBtn = this.container.querySelector('#retry-access-btn');
+    if (retryBtn && this.onItemClick) {
+      retryBtn.addEventListener('click', () => {
+        this.onItemClick('retry-access');
+      });
+    }
   }
 
   /**

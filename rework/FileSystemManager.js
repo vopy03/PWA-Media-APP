@@ -10,6 +10,13 @@ class FileSystemManager {
   }
 
   /**
+   * Перевірка чи це мобільний пристрій
+   */
+  isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+
+  /**
    * Ініціалізація - завантаження збереженого handle
    */
   async initialize() {
@@ -19,7 +26,11 @@ class FileSystemManager {
       if (savedHandle) {
         this.rootHandle = savedHandle;
         console.log('[FileSystemManager] Збережений handle відновлено:', savedHandle.name);
-        this.startPermissionCheck();
+        
+        // На мобільних пристроях запускаємо частішу перевірку
+        const checkInterval = this.isMobileDevice() ? 5000 : 8000;
+        this.startPermissionCheck(checkInterval);
+        
         return true;
       }
       console.log('[FileSystemManager] Збережений handle не знайдено');
@@ -202,10 +213,25 @@ class FileSystemManager {
           if (!db.objectStoreNames.contains('handles')) {
             db.createObjectStore('handles');
           }
+          if (!db.objectStoreNames.contains('directoryInfo')) {
+            db.createObjectStore('directoryInfo');
+          }
         },
       });
+      
+      // Зберігаємо handle
       await db.put('handles', handle, 'savedDirectory');
-      console.log('[FileSystemManager] Handle збережено в IndexedDB');
+      
+      // Зберігаємо додаткову інформацію
+      const directoryInfo = {
+        name: handle.name,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        isMobile: navigator.userAgent.includes('Android') || navigator.userAgent.includes('webOS') || navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') || navigator.userAgent.includes('iPod') || navigator.userAgent.includes('BlackBerry') || navigator.userAgent.includes('IEMobile') || navigator.userAgent.includes('Opera Mini')
+      };
+      await db.put('directoryInfo', directoryInfo, 'savedDirectory');
+      
+      console.log('[FileSystemManager] Handle та інформацію збережено в IndexedDB');
     } catch (error) {
       console.error('[FileSystemManager] Помилка збереження handle:', error);
       throw error;
@@ -228,13 +254,29 @@ class FileSystemManager {
       const handle = await db.get('handles', 'savedDirectory');
       if (handle) {
         console.log('[FileSystemManager] Handle знайдено в IndexedDB:', handle.name);
+        
         // Перевіряємо чи досі маємо доступ
         try {
-          await handle.requestPermission({ mode: 'read' });
-          console.log('[FileSystemManager] Доступ до папки підтверджено');
-          return handle;
+          const permission = await handle.queryPermission({ mode: 'read' });
+          console.log('[FileSystemManager] Поточний дозвіл:', permission);
+          
+          if (permission === 'granted') {
+            console.log('[FileSystemManager] Доступ до папки підтверджено');
+            return handle;
+          } else if (permission === 'prompt') {
+            // Спробуємо запитувати дозвіл автоматично
+            console.log('[FileSystemManager] Запитуємо дозвіл автоматично...');
+            const newPermission = await handle.requestPermission({ mode: 'read' });
+            if (newPermission === 'granted') {
+              console.log('[FileSystemManager] Дозвіл надано автоматично');
+              return handle;
+            }
+          }
+          
+          console.warn('[FileSystemManager] Немає доступу до збереженої папки');
+          return null;
         } catch (error) {
-          console.warn('[FileSystemManager] Немає доступу до збереженої папки:', error);
+          console.warn('[FileSystemManager] Помилка перевірки доступу:', error);
           return null;
         }
       }

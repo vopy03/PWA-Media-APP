@@ -586,6 +586,23 @@ body {
   color: #28a745;
 }
 
+/* Кнопка відновлення доступу */
+.retry-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-top: 15px;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background: #0056b3;
+}
+
 /* Адаптивність */
 @media (max-width: 768px) {
   #app-container {
@@ -614,6 +631,21 @@ body {
   
   .profile-create {
     flex-direction: column;
+  }
+
+  .error-container {
+    padding: 20px;
+  }
+  
+  .retry-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 18px;
+  }
+  
+  .error-message {
+    font-size: 16px;
+    line-height: 1.5;
   }
 }
 

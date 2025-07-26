@@ -98,9 +98,23 @@ class MediaApp {
         'Будь ласка, виберіть папку знову та надайте дозвіл на доступ.'
       );
     } else if (permission === 'prompt') {
-      // Можна показати повідомлення про необхідність підтвердження
-      console.log('[MediaApp] Потрібно підтвердити доступ до папки');
+      // На мобільних пристроях показуємо спеціальне повідомлення
+      if (this.isMobileDevice()) {
+        this.uiManager.showError(
+          'Потрібно підтвердити доступ',
+          'На мобільних пристроях дозволи можуть скидатися. Натисніть "Вибрати папку" для відновлення доступу.'
+        );
+      } else {
+        console.log('[MediaApp] Потрібно підтвердити доступ до папки');
+      }
     }
+  }
+
+  /**
+   * Перевірка чи це мобільний пристрій
+   */
+  isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }
 
   /**
@@ -325,6 +339,10 @@ class MediaApp {
           await this.resumeLastWatched(path);
           break;
           
+        case 'retry-access':
+          await this.retryAccess();
+          break;
+          
         case 'back':
           this.goBack();
           break;
@@ -335,6 +353,32 @@ class MediaApp {
     } catch (error) {
       console.error('[MediaApp] Помилка обробки кліку:', error);
       this.uiManager.showError('Помилка відтворення', error.message);
+    }
+  }
+
+  /**
+   * Спроба відновлення доступу
+   */
+  async retryAccess() {
+    console.log('[MediaApp] Спроба відновлення доступу...');
+    
+    try {
+      this.uiManager.showLoading('Відновлення доступу...');
+      
+      // Спробуємо завантажити handle знову
+      const initialized = await this.fileSystemManager.initialize();
+      
+      if (initialized) {
+        // Якщо вдалося відновити доступ, завантажуємо дані
+        await this.loadMediaData();
+        this.showMediaCatalog();
+      } else {
+        // Якщо не вдалося, показуємо селектор папки
+        this.showDirectorySelector();
+      }
+    } catch (error) {
+      console.error('[MediaApp] Помилка відновлення доступу:', error);
+      this.showDirectorySelector();
     }
   }
 
